@@ -1,6 +1,8 @@
 import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neighbors import KNeighborsClassifier
 
-def compare(X, models, batch=50):
+def compare(X, models, skipIndices, batch=50):
     """
     Prioritizes tracks by highest to lowest uncertainty using algorithmic disagreement. 
 
@@ -30,57 +32,39 @@ def compare(X, models, batch=50):
 
     
     """
-    uncertaintyScores = {}  # dictionary of each track's uncertainty score
-    instrumentDiffs = {}    # dictionary of the instruments disagreed upon for each track and their predicted values
+    uncertaintyScores = {}  # dictionary of each track's uncertainty score by instrument
     allInstProbs = {}       # dictionary of the predictions for every instrument for each track
 
-    for trk in range(batch):  
+    
+    for instrument in models:
+        rfc = models[instrument][0]
+        knn = models[instrument][1]
 
-        # Calculate the mean features for the track at X[trk]
-        feature_mean = np.mean(X[trk], axis=0, keepdims=True)
+        instrPreds = {}   # a dict containing the predictions by each model
+        trkUncertainties = {}
 
-        trkInstruPreds = {}     # a dict containing the evaluations for each instrument by each model
-        trkDisagreements = {}   # a dict containing only the instruments that were disagreed upon
+        for trk in range(batch):
+            if trk not in skipIndices[instrument]:
+                feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
-        # Evaluate this track by each instrument class
-        for instrument in models:
+                # Each model makes a prediction
+                rfcPred = rfc.predict_proba(feature_mean)[0,1]
+                knnPred = knn.predict_proba(feature_mean)[0,1]
 
-            # Get the models
-            rfc = models[instrument][0]
-            knn = models[instrument][1]
-
-            # Each model makes a prediction
-            rfcPred = rfc.predict_proba(feature_mean)[0,1]
-            knnPred = knn.predict_proba(feature_mean)[0,1]
-
-            # Save each of the models' predictions
-            trkInstruPreds[instrument] = [rfcPred, knnPred]
-
-            # Check if the models agree that the instrument is present or not. 
-            # A score of over 0.5 indicates the instrument is present
-            if round(rfcPred) != round(knnPred):
-                trkDisagreements[instrument] = [rfcPred, knnPred]
+                instrPreds[trk] = [rfcPred, knnPred]
 
                 # If this track already has an uncertainty score, add to it
-                if uncertaintyScores.get(trk):
-                    uncertaintyScores[trk] = uncertaintyScores[trk] + abs(rfcPred - knnPred)
-                else: 
-                    uncertaintyScores[trk] = abs(rfcPred - knnPred)
+                trkUncertainties[trk] = abs(rfcPred - knnPred)
         
-        # average the uncertainties across instruments
-        if uncertaintyScores.get(trk):
-            uncertaintyScores[trk] = uncertaintyScores[trk] / len(trkDisagreements)
+        
+        # Sort the dictionary to get the highest uncertainty score    
+        sortedTrx = dict(sorted(trkUncertainties.items(), key=lambda item:item[1], reverse=True))
+        
+        uncertaintyScores[instrument] = sortedTrx
+        allInstProbs[instrument] = instrPreds
+        
+    return uncertaintyScores, allInstProbs
 
-        # save the instrument differences 
-        instrumentDiffs[trk] = trkDisagreements
-        allInstProbs[trk] = trkInstruPreds
-
-
-
-    # Sort the dictionary to get the highest uncertainty score    
-    sortedTrx = dict(sorted(uncertaintyScores.items(), key=lambda item:item[1], reverse=True))
-
-    return sortedTrx, instrumentDiffs, allInstProbs
 
 
 def addRandomTracks(numRandom, numTrx, indexList):
@@ -111,3 +95,62 @@ def addRandomTracks(numRandom, numTrx, indexList):
         rand_idx = np.random.randint(0, numTrx)
 
     return indexList
+
+
+def trainModel(inst_num, X_train, X_test, X_labeled, Y_true_train, Y_true_test, Y_true_labeled, Y_mask_train, Y_mask_test, Y_mask_labeled):
+    """
+    Adds random track indices to an existing list.
+    
+    Parameters
+    ----------
+    numRandom : int
+        Number of random indices to be added
+    numTrx : int
+        Total number of tracks
+    indexList : list
+        List of previously selected track indices
+
+    Returns
+    ----------
+    indexList : list
+        List of indices with random indices included.
+    """
+
+    # isolate data that has been labeled as this instrument
+    train_inst = Y_mask_train[:, inst_num] 
+    test_inst = Y_mask_test[:, inst_num]
+
+    # gets training data with labels for this instrument
+    X_train_inst = X_train[train_inst]
+
+    X_train_new = np.append(X_train_inst, X_labeled, axis=0)
+    
+
+    # averages features over time
+    X_train_inst_sklearn = np.mean(X_train_new, axis=1)
+
+    # labels instrument as present if value over 0.5
+    Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
+    Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
+    Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
+
+    # Repeat slicing for test
+    X_test_inst = X_test[test_inst]
+    X_test_inst_sklearn = np.mean(X_test_inst, axis=1)
+    Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
+
+    # Initialize a new classifier
+    rfc = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
+
+    # Fit model
+    rfc.fit(X_train_inst_sklearn, Y_true_train_combined)
+
+    # Evaluate the model
+    Y_pred_train_rfc = rfc.predict(X_train_inst_sklearn)
+    Y_pred_test_rfc = rfc.predict(X_test_inst_sklearn)
+  
+
+    return rfc
+
+    
+
