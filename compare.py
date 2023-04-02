@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
-def compare(X, models, skipIndices, batch=50):
+def compare(X, models, batch=500):
     """
     Prioritizes tracks by highest to lowest uncertainty using algorithmic disagreement. 
 
@@ -35,7 +35,6 @@ def compare(X, models, skipIndices, batch=50):
     uncertaintyScores = {}  # dictionary of each track's uncertainty score by instrument
     allInstProbs = {}       # dictionary of the predictions for every instrument for each track
 
-    
     for instrument in models:
         rfc = models[instrument][0]
         knn = models[instrument][1]
@@ -43,18 +42,21 @@ def compare(X, models, skipIndices, batch=50):
         instrPreds = {}   # a dict containing the predictions by each model
         trkUncertainties = {}
 
+        if len(X) < batch:  #TODO: If in this case, use all the rest of the items in X
+            raise ValueError("Batch size is greater than remaining values")
+
+
         for trk in range(batch):
-            if trk not in skipIndices[instrument]:
-                feature_mean = np.mean(X[trk], axis=0, keepdims=True)
+            feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
-                # Each model makes a prediction
-                rfcPred = rfc.predict_proba(feature_mean)[0,1]
-                knnPred = knn.predict_proba(feature_mean)[0,1]
+            # Each model makes a prediction
+            rfcPred = rfc.predict_proba(feature_mean)[0,1]
+            knnPred = knn.predict_proba(feature_mean)[0,1]
 
-                instrPreds[trk] = [rfcPred, knnPred]
+            instrPreds[trk] = [rfcPred, knnPred]
 
-                # If this track already has an uncertainty score, add to it
-                trkUncertainties[trk] = abs(rfcPred - knnPred)
+            # If this track already has an uncertainty score, add to it
+            trkUncertainties[trk] = abs(rfcPred - knnPred)
         
         
         # Sort the dictionary to get the highest uncertainty score    
