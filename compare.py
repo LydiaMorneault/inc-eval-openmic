@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
-def compare(X, models, skipIndices, batch=500):
+def compare(X, models, skipIndices):
     """
     Prioritizes tracks by highest to lowest uncertainty using algorithmic disagreement. 
 
@@ -18,8 +18,6 @@ def compare(X, models, skipIndices, batch=500):
         The data to be prioritzed
     models : dict
         The trained instrument classifiers organized by instrument. The format is "instrument": [rfc,knn]
-    batch : int, optional
-        The number of tracks to be prioritized at once
 
     Returns
     ----------
@@ -34,6 +32,7 @@ def compare(X, models, skipIndices, batch=500):
     """
     uncertaintyScores = {}  # dictionary of each track's uncertainty score by instrument
     allInstProbs = {}       # dictionary of the predictions for every instrument for each track
+    # print("Called")
 
     for instrument in models:
         rfc = models[instrument][0]
@@ -42,11 +41,11 @@ def compare(X, models, skipIndices, batch=500):
         instrPreds = {}   # a dict containing the predictions by each model
         trkUncertainties = {}
 
-        if len(X) < batch:  #TODO: If in this case, use all the rest of the items in X
-            return
+        # print(instrument, ": \t skip indices:", len(skipIndices[instrument]))
 
-        for trk in range(batch):
+        for trk in range(len(X)):
             if trk not in skipIndices[instrument]:
+                # print("New track")
                 feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
                 # Each model makes a prediction
@@ -99,23 +98,43 @@ def addRandomTracks(numRandom, numTrx, indexList):
     return indexList
 
 
-def trainModel(inst_num, X_train, X_test, X_labeled, Y_true_train, Y_true_test, Y_true_labeled, Y_mask_train, Y_mask_test, Y_mask_labeled):
+def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, Y_mask_train, Y_mask_test, Y_true_labeled=None, X_labeled=None):
     """
-    Adds random track indices to an existing list.
+    Trains either a Random Forest or K-Nearest Neighbors scikitlearn model. 
     
     Parameters
     ----------
-    numRandom : int
-        Number of random indices to be added
-    numTrx : int
-        Total number of tracks
-    indexList : list
-        List of previously selected track indices
-
+    modelType : str
+        'rfc' for Random Forest Classifier 
+        'knn' for K-Nearest Neighbors
+    inst_num : int
+        Instrument class number, based on the classmap 
+    X_train : numpy.ndarray
+        Training data
+    X_test : numpy.ndarray
+        Testing data
+    Y_true_train : numpy.ndarray
+        Training data true values
+    Y_true_test : numpy.ndarray
+        Testing data true values
+    Y_mask_train : numpy.ndarray
+        Training data labels
+    Y_mask_test : numpy.ndarray
+        Testing data labels
+    Y_true_labeled : numpy.ndarray, optional
+        Values for labeled data
+    X_labeled : numpy.ndarray, optional
+        Labeled data
+        
     Returns
     ----------
-    indexList : list
-        List of indices with random indices included.
+    model : scikitlearn model
+        Trained model
+    X_test_inst_sklearn : numpy.ndarray
+        Data used for testing predictions
+    Y_true_test_inst : numpy.ndarray
+        Labels for test data
+
     """
 
     # isolate data that has been labeled as this instrument
@@ -125,16 +144,18 @@ def trainModel(inst_num, X_train, X_test, X_labeled, Y_true_train, Y_true_test, 
     # gets training data with labels for this instrument
     X_train_inst = X_train[train_inst]
 
-    X_train_new = np.append(X_train_inst, X_labeled, axis=0)
-    
+    if X_labeled != None:
 
-    # averages features over time
-    X_train_inst_sklearn = np.mean(X_train_new, axis=1)
+        X_train_new = np.append(X_train_inst, X_labeled, axis=0)
+    
+        # averages features over time
+        X_train_inst_sklearn = np.mean(X_train_new, axis=1)
+    else:
+        X_train_inst_sklearn = np.mean(X_train_inst, axis=1)
+
 
     # labels instrument as present if value over 0.5
     Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
-    Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
-    Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
 
     # Repeat slicing for test
     X_test_inst = X_test[test_inst]
@@ -142,17 +163,22 @@ def trainModel(inst_num, X_train, X_test, X_labeled, Y_true_train, Y_true_test, 
     Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
 
     # Initialize a new classifier
-    rfc = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
+    if modelType == "rfc":
+        model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
+    else:
+        model = KNeighborsClassifier(n_neighbors=10)
 
-    # Fit model
-    rfc.fit(X_train_inst_sklearn, Y_true_train_combined)
 
-    # Evaluate the model
-    Y_pred_train_rfc = rfc.predict(X_train_inst_sklearn)
-    Y_pred_test_rfc = rfc.predict(X_test_inst_sklearn)
-  
+    if Y_true_labeled is not None:
+        Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
+        Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
 
-    return rfc
+        # Fit model
+        model.fit(X_train_inst_sklearn, Y_true_train_combined)
+    else:
+        model.fit(X_train_inst_sklearn, Y_true_train_inst)
+
+    return model, X_test_inst_sklearn, Y_true_test_inst
 
     
 
