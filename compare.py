@@ -136,6 +136,7 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
         Labels for test data
 
     """
+    NUM_NEIGHBS = 10
 
     # isolate data that has been labeled as this instrument
     train_inst = Y_mask_train[:, inst_num] 
@@ -166,7 +167,7 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     if modelType == "rfc":
         model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
     else:
-        model = KNeighborsClassifier(n_neighbors=10)
+        model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
 
 
     if Y_true_labeled is not None:
