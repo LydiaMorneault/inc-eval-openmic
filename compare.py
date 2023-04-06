@@ -18,6 +18,9 @@ def compare(X, models, skipIndices):
         The data to be prioritzed
     models : dict
         The trained instrument classifiers organized by instrument. The format is "instrument": [rfc,knn]
+    skipIndices : dict
+        Contains the indices of tracks that have been "annotated" and therefore should not be included in the annotation process
+        Organized by instrument class
 
     Returns
     ----------
@@ -32,20 +35,19 @@ def compare(X, models, skipIndices):
     """
     uncertaintyScores = {}  # dictionary of each track's uncertainty score by instrument
     allInstProbs = {}       # dictionary of the predictions for every instrument for each track
-    # print("Called")
 
     for instrument in models:
+        print(instrument, "starting")
+
         rfc = models[instrument][0]
         knn = models[instrument][1]
 
         instrPreds = {}   # a dict containing the predictions by each model
         trkUncertainties = {}
 
-        # print(instrument, ": \t skip indices:", len(skipIndices[instrument]))
 
         for trk in range(len(X)):
             if trk not in skipIndices[instrument]:
-                # print("New track")
                 feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
                 # Each model makes a prediction
@@ -63,6 +65,8 @@ def compare(X, models, skipIndices):
         
         uncertaintyScores[instrument] = sortedTrx
         allInstProbs[instrument] = instrPreds
+
+        print(instrument, "finished")
         
     return uncertaintyScores, allInstProbs
 
@@ -114,15 +118,15 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     X_test : numpy.ndarray
         Testing data
     Y_true_train : numpy.ndarray
-        Training data true values
+        Actual values for training data
     Y_true_test : numpy.ndarray
-        Testing data true values
+        Actual values for test data
     Y_mask_train : numpy.ndarray
-        Training data labels
+        Indicates whether a label exists for each instrument in the track
     Y_mask_test : numpy.ndarray
-        Testing data labels
+        Indicates whether a label exists for each instrument in the track
     Y_true_labeled : numpy.ndarray, optional
-        Values for labeled data
+        Actual values for labeled data
     X_labeled : numpy.ndarray, optional
         Labeled data
         
@@ -138,13 +142,19 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     """
     NUM_NEIGHBS = 10
 
+    ###########################################################################
+    # SUB-SAMPLE DATA - isolate the data for which we have annotations
+
     # isolate data that has been labeled as this instrument
     train_inst = Y_mask_train[:, inst_num] 
     test_inst = Y_mask_test[:, inst_num]
 
-    # gets training data with labels for this instrument
+    # Use the Y_mask_train array to slice out only the training examples
+    # for which we have annotations for the given class
     X_train_inst = X_train[train_inst]
-
+    
+    ###########################################################################
+    # SIMPLIFY DATA - average over time
     if X_labeled != None:
 
         X_train_new = np.append(X_train_inst, X_labeled, axis=0)
@@ -163,13 +173,15 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     X_test_inst_sklearn = np.mean(X_test_inst, axis=1)
     Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
 
-    # Initialize a new classifier
+    ###########################################################################
+    # INITIALIZE CLASSIFIER 
     if modelType == "rfc":
         model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
     else:
         model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
 
-
+    # Again, we slice the labels to the annotated examples
+    # We thresold the label likelihoods at 0.5 to get binary labels
     if Y_true_labeled is not None:
         Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
         Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
