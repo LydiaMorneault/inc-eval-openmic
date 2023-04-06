@@ -72,7 +72,7 @@ def compare(X, models, skipIndices):
 
 
 
-def addRandomTracks(numRandom, numTrx, indexList):
+def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
     """
     Adds random track indices to an existing list.
     
@@ -94,7 +94,7 @@ def addRandomTracks(numRandom, numTrx, indexList):
     rand_idx = np.random.randint(0, numTrx)
 
     while i < numRandom:
-        if rand_idx not in indexList:
+        if (rand_idx not in indexList) and (rand_idx in instrumentProbs):
             indexList.append(rand_idx)
             i += 1
         rand_idx = np.random.randint(0, numTrx)
