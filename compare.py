@@ -141,6 +141,7 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
 
     """
     NUM_NEIGHBS = 10
+    props = {}
 
     ###########################################################################
     # SUB-SAMPLE DATA - isolate the data for which we have annotations
@@ -167,11 +168,16 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
 
     # labels instrument as present if value over 0.5
     Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
+    # print(inst_num, "TOTAL TRAIN", len(Y_true_train),"\tLABELED AS TRUE:", len(Y_true_train_inst))
+    props["train"] = [len(Y_true_train), len(Y_true_train_inst)]
 
     # Repeat slicing for test
     X_test_inst = X_test[test_inst]
     X_test_inst_sklearn = np.mean(X_test_inst, axis=1)
     Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
+    # print(inst_num, "TOTAL TEST", len(Y_true_test),"\tLABELED AS TRUE:", len(Y_true_test_inst))
+    props["test"] = [len(Y_true_test), len(Y_true_test_inst)]
+
 
     ###########################################################################
     # INITIALIZE CLASSIFIER 
@@ -185,13 +191,17 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     if Y_true_labeled is not None:
         Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
         Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
+        # print(inst_num, "TOTAL LABELED", len(Y_true_labeled),"\tLABELED AS TRUE:", len(Y_true_train_labeled))
+        props["labeled"] = [len(Y_true_labeled), len(Y_true_train_labeled)]
+
+
 
         # Fit model
         model.fit(X_train_inst_sklearn, Y_true_train_combined)
     else:
         model.fit(X_train_inst_sklearn, Y_true_train_inst)
 
-    return model, X_test_inst_sklearn, Y_true_test_inst
+    return model, X_test_inst_sklearn, Y_true_test_inst, props
 
     
 
