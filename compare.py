@@ -46,7 +46,8 @@ def compare(X, models, skipIndices):
         trkUncertainties = {}
 
 
-        for trk in range(len(X)):
+        # for trk in range(len(X)):
+        for trk in range(200):
             if trk not in skipIndices[instrument]:
                 feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
@@ -66,8 +67,6 @@ def compare(X, models, skipIndices):
         uncertaintyScores[instrument] = sortedTrx
         allInstProbs[instrument] = instrPreds
 
-        print(instrument, "finished")
-        
     return uncertaintyScores, allInstProbs
 
 
@@ -102,7 +101,7 @@ def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
     return indexList
 
 
-def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, Y_mask_train, Y_mask_test, Y_true_labeled=None, X_labeled=None):
+def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_labeled=None, X_labeled=None):
     """
     Trains either a Random Forest or K-Nearest Neighbors scikitlearn model. 
     
@@ -115,15 +114,9 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
         Instrument class number, based on the classmap 
     X_train : numpy.ndarray
         Training data
-    X_test : numpy.ndarray
-        Testing data
     Y_true_train : numpy.ndarray
         Actual values for training data
-    Y_true_test : numpy.ndarray
-        Actual values for test data
     Y_mask_train : numpy.ndarray
-        Indicates whether a label exists for each instrument in the track
-    Y_mask_test : numpy.ndarray
         Indicates whether a label exists for each instrument in the track
     Y_true_labeled : numpy.ndarray, optional
         Actual values for labeled data
@@ -147,53 +140,49 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     # SUB-SAMPLE DATA - isolate the data for which we have annotations
 
     # isolate data that has been labeled as this instrument
+        # Use the Y_mask_train array to slice out only the training examples
+        # for which we have annotations for the given class
     train_inst = Y_mask_train[:, inst_num] 
-    test_inst = Y_mask_test[:, inst_num]
 
-    # Use the Y_mask_train array to slice out only the training examples
-    # for which we have annotations for the given class
     X_train_inst = X_train[train_inst]
     
     ###########################################################################
     # SIMPLIFY DATA - average over time
     if X_labeled != None:
 
+        print(len(X_labeled))
+
         X_train_new = np.append(X_train_inst, X_labeled, axis=0)
+
+        print(inst_num, "X train new length", X_train_new.shape, X_train_inst.shape, len(X_labeled))
     
         # averages features over time
         X_train_inst_sklearn = np.mean(X_train_new, axis=1)
     else:
         X_train_inst_sklearn = np.mean(X_train_inst, axis=1)
 
-
-    # labels instrument as present if value over 0.5
-    Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
-    # print(inst_num, "TOTAL TRAIN", len(Y_true_train),"\tLABELED AS TRUE:", len(Y_true_train_inst))
-    props["train"] = [len(Y_true_train), len(Y_true_train_inst)]
-
-    # Repeat slicing for test
-    X_test_inst = X_test[test_inst]
-    X_test_inst_sklearn = np.mean(X_test_inst, axis=1)
-    Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
-    # print(inst_num, "TOTAL TEST", len(Y_true_test),"\tLABELED AS TRUE:", len(Y_true_test_inst))
-    props["test"] = [len(Y_true_test), len(Y_true_test_inst)]
-
-
     ###########################################################################
     # INITIALIZE CLASSIFIER 
     if modelType == "rfc":
-        model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
+        model = RandomForestClassifier(max_depth=8, n_estimators=NUM_NEIGHBS, random_state=0)
     else:
         model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
+
+    # labels instrument a
+    # s present if value over 0.5
+    Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
+    props["train"] = [len(Y_true_train), len(Y_true_train_inst)]
+
 
     # Again, we slice the labels to the annotated examples
     # We thresold the label likelihoods at 0.5 to get binary labels
     if Y_true_labeled is not None:
         Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
         Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
-        # print(inst_num, "TOTAL LABELED", len(Y_true_labeled),"\tLABELED AS TRUE:", len(Y_true_train_labeled))
-        props["labeled"] = [len(Y_true_labeled), len(Y_true_train_labeled)]
 
+        print(inst_num, "Y true train new length", Y_true_train_combined.shape, Y_true_train_inst.shape, len(Y_true_train_labeled))
+
+        props["labeled"] = [len(Y_true_labeled), len(Y_true_train_labeled)]
 
 
         # Fit model
@@ -201,7 +190,7 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     else:
         model.fit(X_train_inst_sklearn, Y_true_train_inst)
 
-    return model, X_test_inst_sklearn, Y_true_test_inst, props
+    return model, props
 
     
 
