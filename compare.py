@@ -67,8 +67,6 @@ def compare(X, models, skipIndices):
         uncertaintyScores[instrument] = sortedTrx
         allInstProbs[instrument] = instrPreds
 
-        print(instrument, "finished")
-        
     return uncertaintyScores, allInstProbs
 
 
