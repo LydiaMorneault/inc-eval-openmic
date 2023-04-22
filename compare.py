@@ -47,6 +47,7 @@ def compare(X, models, skipIndices):
 
 
         for trk in range(len(X)):
+        # for trk in range(200):
             if trk not in skipIndices[instrument]:
                 feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
@@ -102,7 +103,50 @@ def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
     return indexList
 
 
-def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, Y_mask_train, Y_mask_test, Y_true_labeled=None, X_labeled=None):
+def trainPartialModel(inst_num, X_labeled, Y_true_labeled, num_neighbs=100):
+    """
+    Trains either a Random Forest or K-Nearest Neighbors scikitlearn model. 
+    
+    Parameters
+    ----------
+    inst_num : int
+        Instrument class number, based on the classmap 
+    X_labeled : numpy.ndarray, optional
+        Labeled data
+    Y_true_labeled : numpy.ndarray, optional
+        Actual values for labeled data
+    num_neighbs: int, optional
+        Number of neghbors for RFC
+
+    Returns
+    ----------
+    model : scikitlearn model
+        Trained model
+    props: list
+        List containing [number of labeled data, number of positive labels]
+    """
+    
+    # averages features over time
+    X_inst_sklearn = np.mean(X_labeled, axis=1)
+
+    # labels instrument as present if value over 0.5
+    Y_true_train_labeled = []
+    trues = 0   # tracks how many true values exist
+    for i in Y_true_labeled: # for track
+        Y_true_train_labeled.append(i[inst_num] > 0.5)
+        if i[inst_num] > 0.5:
+            trues += 1
+
+    model = RandomForestClassifier(max_depth=8, n_estimators=num_neighbs, random_state=0)
+
+    model.fit(X_inst_sklearn, Y_true_train_labeled)
+
+    return model, [len(Y_true_labeled), trues)]
+
+
+
+
+def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, Y_mask_train, Y_mask_test):
     """
     Trains either a Random Forest or K-Nearest Neighbors scikitlearn model. 
     
@@ -125,10 +169,8 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
         Indicates whether a label exists for each instrument in the track
     Y_mask_test : numpy.ndarray
         Indicates whether a label exists for each instrument in the track
-    Y_true_labeled : numpy.ndarray, optional
-        Actual values for labeled data
-    X_labeled : numpy.ndarray, optional
-        Labeled data
+
+
         
     Returns
     ----------
@@ -141,7 +183,6 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
 
     """
     NUM_NEIGHBS = 10
-    props = {}
 
     ###########################################################################
     # SUB-SAMPLE DATA - isolate the data for which we have annotations
@@ -156,52 +197,31 @@ def trainModel(modelType, inst_num, X_train, X_test, Y_true_train, Y_true_test, 
     
     ###########################################################################
     # SIMPLIFY DATA - average over time
-    if X_labeled != None:
 
-        X_train_new = np.append(X_train_inst, X_labeled, axis=0)
-    
-        # averages features over time
-        X_train_inst_sklearn = np.mean(X_train_new, axis=1)
-    else:
-        X_train_inst_sklearn = np.mean(X_train_inst, axis=1)
+    X_train_inst_sklearn = np.mean(X_train_inst, axis=1)
+
 
 
     # labels instrument as present if value over 0.5
     Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
     # print(inst_num, "TOTAL TRAIN", len(Y_true_train),"\tLABELED AS TRUE:", len(Y_true_train_inst))
-    props["train"] = [len(Y_true_train), len(Y_true_train_inst)]
 
     # Repeat slicing for test
     X_test_inst = X_test[test_inst]
     X_test_inst_sklearn = np.mean(X_test_inst, axis=1)
     Y_true_test_inst = Y_true_test[test_inst, inst_num] >= 0.5
-    # print(inst_num, "TOTAL TEST", len(Y_true_test),"\tLABELED AS TRUE:", len(Y_true_test_inst))
-    props["test"] = [len(Y_true_test), len(Y_true_test_inst)]
-
 
     ###########################################################################
     # INITIALIZE CLASSIFIER 
     if modelType == "rfc":
-        model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
+        model = RandomForestClassifier(max_depth=8, n_estimators=NUM_NEIGHBS, random_state=0)
     else:
         model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
 
-    # Again, we slice the labels to the annotated examples
-    # We thresold the label likelihoods at 0.5 to get binary labels
-    if Y_true_labeled is not None:
-        Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
-        Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
-        # print(inst_num, "TOTAL LABELED", len(Y_true_labeled),"\tLABELED AS TRUE:", len(Y_true_train_labeled))
-        props["labeled"] = [len(Y_true_labeled), len(Y_true_train_labeled)]
 
+    model.fit(X_train_inst_sklearn, Y_true_train_inst)
 
-
-        # Fit model
-        model.fit(X_train_inst_sklearn, Y_true_train_combined)
-    else:
-        model.fit(X_train_inst_sklearn, Y_true_train_inst)
-
-    return model, X_test_inst_sklearn, Y_true_test_inst, props
+    return model, X_test_inst_sklearn, Y_true_test_inst
 
     
 
