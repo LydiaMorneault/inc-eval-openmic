@@ -133,15 +133,15 @@ def trainPartialModel(inst_num, X_labeled, Y_true_labeled, num_neighbs=100):
     Y_true_train_labeled = []
     trues = 0   # tracks how many true values exist
     for i in Y_true_labeled: # for track
-        Y_true_train_labeled.append(i[inst_num] > 0.5)
-        if i[inst_num] > 0.5:
+        Y_true_train_labeled.append(i[inst_num] >= 0.5)
+        if i[inst_num] >= 0.5:
             trues += 1
 
     model = RandomForestClassifier(max_depth=8, n_estimators=num_neighbs, random_state=0)
 
     model.fit(X_inst_sklearn, Y_true_train_labeled)
 
-    return model, [len(Y_true_labeled), trues)]
+    return model, [len(Y_true_labeled), trues]
 
 
 
