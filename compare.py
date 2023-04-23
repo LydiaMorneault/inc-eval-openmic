@@ -2,7 +2,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
-def compare(X, models, skipIndices):
+def compare(X, models):
     """
     Prioritizes tracks by highest to lowest uncertainty using algorithmic disagreement. 
 
@@ -18,9 +18,6 @@ def compare(X, models, skipIndices):
         The data to be prioritzed
     models : dict
         The trained instrument classifiers organized by instrument. The format is "instrument": [rfc,knn]
-    skipIndices : dict
-        Contains the indices of tracks that have been "annotated" and therefore should not be included in the annotation process
-        Organized by instrument class
 
     Returns
     ----------
@@ -45,18 +42,17 @@ def compare(X, models, skipIndices):
 
 
         for trk in range(len(X)):
-        # for trk in range(200):
-            if trk not in skipIndices[instrument]:
-                feature_mean = np.mean(X[trk], axis=0, keepdims=True)
+        # for trk in range(100):
+            feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
-                # Each model makes a prediction
-                rfcPred = rfc.predict_proba(feature_mean)[0,1]
-                knnPred = knn.predict_proba(feature_mean)[0,1]
+            # Each model makes a prediction
+            rfcPred = rfc.predict_proba(feature_mean)[0,1]
+            knnPred = knn.predict_proba(feature_mean)[0,1]
 
-                instrPreds[trk] = [rfcPred, knnPred]
+            instrPreds[trk] = [rfcPred, knnPred]
 
-                # If this track already has an uncertainty score, add to it
-                trkUncertainties[trk] = abs(rfcPred - knnPred)
+            # If this track already has an uncertainty score, add to it
+            trkUncertainties[trk] = abs(rfcPred - knnPred)
         
         
         # Sort the dictionary to get the highest uncertainty score    
