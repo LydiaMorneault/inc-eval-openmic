@@ -26,8 +26,6 @@ def compare(X, models, skipIndices):
     ----------
     uncertaintyScores : dict
         A dictionary of all tracks and their average algorithmic difference
-    instrumentDiffs : dict
-        A dictionary of all the instruments disagreed upon by the models
     allInstProbs : dict
         A dictionary of all the instruments and their predictions
 
@@ -46,8 +44,8 @@ def compare(X, models, skipIndices):
         trkUncertainties = {}
 
 
-        # for trk in range(len(X)):
-        for trk in range(200):
+        for trk in range(len(X)):
+        # for trk in range(200):
             if trk not in skipIndices[instrument]:
                 feature_mean = np.mean(X[trk], axis=0, keepdims=True)
 
@@ -71,37 +69,37 @@ def compare(X, models, skipIndices):
 
 
 
-def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
-    """
-    Adds random track indices to an existing list.
+# def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
+#     """
+#     Adds random track indices to an existing list.
     
-    Parameters
-    ----------
-    numRandom : int
-        Number of random indices to be added
-    numTrx : int
-        Total number of tracks
-    indexList : list
-        List of previously selected track indices
+#     Parameters
+#     ----------
+#     numRandom : int
+#         Number of random indices to be added
+#     numTrx : int
+#         Total number of tracks
+#     indexList : list
+#         List of previously selected track indices
 
-    Returns
-    ----------
-    indexList : list
-        List of indices with random indices included.
-    """
-    i = 0
-    rand_idx = np.random.randint(0, numTrx)
+#     Returns
+#     ----------
+#     indexList : list
+#         List of indices with random indices included.
+#     """
+#     i = 0
+#     rand_idx = np.random.randint(0, numTrx)
 
-    while i < numRandom:
-        if (rand_idx not in indexList) and (rand_idx in instrumentProbs):
-            indexList.append(rand_idx)
-            i += 1
-        rand_idx = np.random.randint(0, numTrx)
+#     while i < numRandom:
+#         if (rand_idx not in indexList) and (rand_idx in instrumentProbs):
+#             indexList.append(rand_idx)
+#             i += 1
+#         rand_idx = np.random.randint(0, numTrx)
 
-    return indexList
+#     return indexList
 
 
-def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_labeled=None, X_labeled=None):
+def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_labeled=None, X_labeled=-1):
     """
     Trains either a Random Forest or K-Nearest Neighbors scikitlearn model. 
     
@@ -127,10 +125,6 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
     ----------
     model : scikitlearn model
         Trained model
-    X_test_inst_sklearn : numpy.ndarray
-        Data used for testing predictions
-    Y_true_test_inst : numpy.ndarray
-        Labels for test data
 
     """
     NUM_NEIGHBS = 10
@@ -148,14 +142,11 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
     
     ###########################################################################
     # SIMPLIFY DATA - average over time
-    if X_labeled != None:
 
-        print(len(X_labeled))
-
+    if X_labeled != -1:
+        # combine the training and labeled sets
         X_train_new = np.append(X_train_inst, X_labeled, axis=0)
 
-        print(inst_num, "X train new length", X_train_new.shape, X_train_inst.shape, len(X_labeled))
-    
         # averages features over time
         X_train_inst_sklearn = np.mean(X_train_new, axis=1)
     else:
@@ -168,8 +159,7 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
     else:
         model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
 
-    # labels instrument a
-    # s present if value over 0.5
+    # labels instrument as present if value over 0.5
     Y_true_train_inst = Y_true_train[train_inst, inst_num] >= 0.5
     props["train"] = [len(Y_true_train), len(Y_true_train_inst)]
 
@@ -180,10 +170,9 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
         Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
         Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
 
-        print(inst_num, "Y true train new length", Y_true_train_combined.shape, Y_true_train_inst.shape, len(Y_true_train_labeled))
+        # print(inst_num, "Y true train new length", Y_true_train_combined.shape, Y_true_train_inst.shape, len(Y_true_train_labeled))
 
         props["labeled"] = [len(Y_true_labeled), len(Y_true_train_labeled)]
-
 
         # Fit model
         model.fit(X_train_inst_sklearn, Y_true_train_combined)
