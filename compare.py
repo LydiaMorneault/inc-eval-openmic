@@ -127,7 +127,7 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
         Trained model
 
     """
-    NUM_NEIGHBS = 10
+    NUM_NEIGHBS = 20
     props = {}
 
     ###########################################################################
@@ -155,7 +155,7 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
     ###########################################################################
     # INITIALIZE CLASSIFIER 
     if modelType == "rfc":
-        model = RandomForestClassifier(max_depth=8, n_estimators=NUM_NEIGHBS, random_state=0)
+        model = RandomForestClassifier(max_depth=8, n_estimators=100, random_state=0)
     else:
         model = KNeighborsClassifier(n_neighbors=NUM_NEIGHBS, weights="distance")
 
