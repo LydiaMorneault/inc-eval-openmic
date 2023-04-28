@@ -6,11 +6,7 @@ def compare(X, models):
     """
     Prioritizes tracks by highest to lowest uncertainty using algorithmic disagreement. 
 
-    In this function, uncertainty is calculated as follows: 
-        1. Check if the models disagree on the existence of the instrument in the track. 
-            Rounding the prediction down to 0 means no instrument, and up to 1 means the instrument is present.
-        2. On tracks where the models disagree, get the difference between the predictions for that instrument
-        3. The uncertainty score = the average of the differences for each track across instruments
+    In this function, uncertainty is calculated by getting the difference between the predictions for each instrument
     
     Parameters
     ----------
@@ -62,37 +58,6 @@ def compare(X, models):
         allInstProbs[instrument] = instrPreds
 
     return uncertaintyScores, allInstProbs
-
-
-
-# def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
-#     """
-#     Adds random track indices to an existing list.
-    
-#     Parameters
-#     ----------
-#     numRandom : int
-#         Number of random indices to be added
-#     numTrx : int
-#         Total number of tracks
-#     indexList : list
-#         List of previously selected track indices
-
-#     Returns
-#     ----------
-#     indexList : list
-#         List of indices with random indices included.
-#     """
-#     i = 0
-#     rand_idx = np.random.randint(0, numTrx)
-
-#     while i < numRandom:
-#         if (rand_idx not in indexList) and (rand_idx in instrumentProbs):
-#             indexList.append(rand_idx)
-#             i += 1
-#         rand_idx = np.random.randint(0, numTrx)
-
-#     return indexList
 
 
 def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_labeled=None, X_labeled=-1):
@@ -161,7 +126,7 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
 
 
     # Again, we slice the labels to the annotated examples
-    # We thresold the label likelihoods at 0.5 to get binary labels
+    # We threshold the label likelihoods at 0.5 to get binary labels
     if Y_true_labeled is not None:
         Y_true_train_labeled = Y_true_labeled[:, inst_num] >= 0.5
         Y_true_train_combined = np.append(Y_true_train_inst, Y_true_train_labeled, axis=0)
@@ -179,3 +144,32 @@ def trainModel(modelType, inst_num, X_train, Y_true_train, Y_mask_train, Y_true_
 
     
 
+
+# def addRandomTracks(numRandom, numTrx, indexList, instrumentProbs):
+#     """
+#     Adds random track indices to an existing list.
+    
+#     Parameters
+#     ----------
+#     numRandom : int
+#         Number of random indices to be added
+#     numTrx : int
+#         Total number of tracks
+#     indexList : list
+#         List of previously selected track indices
+
+#     Returns
+#     ----------
+#     indexList : list
+#         List of indices with random indices included.
+#     """
+#     i = 0
+#     rand_idx = np.random.randint(0, numTrx)
+
+#     while i < numRandom:
+#         if (rand_idx not in indexList) and (rand_idx in instrumentProbs):
+#             indexList.append(rand_idx)
+#             i += 1
+#         rand_idx = np.random.randint(0, numTrx)
+
+#     return indexList
